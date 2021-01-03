@@ -5,6 +5,8 @@
 
 #include <iostream>
 #include <vector>
+#include <tf2_ros/transform_listener.h>
+#include <geometry_msgs/TransformStamped.h>
 #include "opencv2/aruco/charuco.hpp"
 #include "opencv2/imgproc.hpp"
 #include "opencv2/highgui.hpp"
@@ -19,11 +21,12 @@
 
 using namespace std;
 using namespace cv;
+using geometry_msgs::TransformStamped;
 
 class Calibrator 
 {
 public:
-    Calibrator() : it(nh)
+    Calibrator() : it(nh), tfListener(tfBuffer)
     {
         img_sub = it.subscribe("avt_camera_img", 2, &Calibrator::imageCb, this);
         setDetectionParameters();
@@ -32,15 +35,16 @@ public:
     // set detection parameters
     void setDetectionParameters();
 
-    // marker detection function
-    // return 1 if has marker detected
-    int detectMarkers(Mat& image);
-
+    // display the processed image and return pressed key
     int showImage();
 
+    // save the current frame
     void saveData(){
         save_frame = true;
     }
+
+    // calibrate based on current collected frames
+    void calibrate();
 
 private:
     ros::NodeHandle nh;
@@ -53,15 +57,24 @@ private:
     
     Mat processed_img = Mat::zeros(1200, 1600, CV_8UC3);
 
-    std::vector<std::vector<cv::Point2f>> allCharucoCorners;
-    std::vector<std::vector<int>> allCharucoIds;
+    vector<vector<Point2f>> allCharucoCorners;
+    vector<vector<int>> allCharucoIds;
+    vector<TransformStamped> allRobotPoses;
+    Size imgSize;
 
+    // flag to save current frame
     bool save_frame = false;
-    // image call back function
+
+    // tf listener to get robot pose
+    tf2_ros::Buffer tfBuffer;
+    tf2_ros::TransformListener tfListener;
+
+    // image callback function
     void imageCb(const sensor_msgs::ImageConstPtr& msg);
 
-    // help function: convert rotation and translation vectors to a ROS pose message type
-    geometry_msgs::Pose rtv2pose(Vec3d rvec, Vec3d tvec);
+    // help function: convert transformation ROS message to rotation and translation vectors 
+    void transform2rv(TransformStamped transform, Mat& rvec, Mat& tvec);
+
 };
 
 void Calibrator::setDetectionParameters()
@@ -151,6 +164,10 @@ void Calibrator::imageCb(const sensor_msgs::ImageConstPtr& msg)
                 ROS_INFO("adding one frame....");
                 allCharucoCorners.push_back(charucoCorners);
                 allCharucoIds.push_back(charucoIds);
+                // get robot pose
+                TransformStamped robot_pose = tfBuffer.lookupTransform("base", "tool0_controller", ros::Time(0));
+                allRobotPoses.push_back(robot_pose);
+                imgSize = cv_ptr->image.size();
                 ROS_INFO("%d frames collected", (int)allCharucoCorners.size());
                 save_frame = false;
             }
@@ -164,25 +181,51 @@ int Calibrator::showImage()
     return waitKey(1);
 }
 
+void Calibrator::transform2rv(TransformStamped transform, Mat& rvec, Mat& tvec)
+{
+    return;
+}
+
+void Calibrator::calibrate()
+{
+    ROS_INFO("Calibrating the camera.... %d poses collected.", (int)allCharucoCorners.size());
+    
+    // calibrate camera
+    Mat camera_matrix, dist_coeffs;
+    vector<Mat> rvecs, tvecs;
+    double repError = aruco::calibrateCameraCharuco(allCharucoCorners, allCharucoIds, board, imgSize, camera_matrix, dist_coeffs, rvecs, tvecs);
+
+    // calibrate hand eye position
+    vector<Mat> R_gripper2base, t_gripper2base;
+    for(int i=0; i<allRobotPoses.size(); i++)
+    {
+        Mat R, t;
+        transform2rv(allRobotPoses[i], R, t);
+        R_gripper2base.push_back(R);
+        t_gripper2base.push_back(t);
+    }
+
+}
+
 int main(int argc, char** argv)
 {
-  ros::init(argc, argv, "camera_hand_eye_calibration");
-  Calibrator obj;
-  ros::Rate loop_rate(50);
+    ros::init(argc, argv, "camera_hand_eye_calibration");
+    Calibrator obj;
+    ros::Rate loop_rate(50);
 
-  while (ros::ok())
-  {
-      int key = obj.showImage();
-      if(key == 's')
-      {
-          obj.saveData();
-      }
-      if(key == 'q')
-      {
-          
-      }
-      //ROS_INFO("key pressed %d", key);
-      ros::spinOnce();
-  }
-  return 0;
+    while (ros::ok())
+    {
+        int key = obj.showImage();
+        if(key == 's')
+        {
+            obj.saveData();
+        }
+        if(key == 'q')
+        {
+            
+        }
+        //ROS_INFO("key pressed %d", key);
+        ros::spinOnce();
+    }
+    return 0;
 }
