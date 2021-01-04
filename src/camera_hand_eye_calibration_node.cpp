@@ -57,12 +57,16 @@ private:
 	Ptr<aruco::DetectorParameters> detectorParams = aruco::DetectorParameters::create();
     cv::Ptr<cv::aruco::CharucoBoard> board; 
     
-    Mat processed_img = Mat::zeros(1200, 1600, CV_8UC3);
+    //Mat processed_img;
+    Mat info_activate, info_inactivate, display_img;
 
     vector<vector<Point2f>> allCharucoCorners;
     vector<vector<int>> allCharucoIds;
     vector<TransformStamped> allRobotPoses;
     Size imgSize;
+
+    // flag to indicate if have received a image
+    bool image_received = false;
 
     // flag to save current frame
     bool save_frame = false;
@@ -90,6 +94,7 @@ void Calibrator::setDetectionParameters()
     if(pnh.getParam("minMarkerPerimeterRate", _minMarkerPerimeterRate))
     {
         detectorParams->minMarkerPerimeterRate = _minMarkerPerimeterRate;
+
     }
     else
     {
@@ -148,9 +153,26 @@ void Calibrator::imageCb(const sensor_msgs::ImageConstPtr& msg)
         ROS_ERROR("cv_bridge exception: %s", e.what());
         return;
     }
-
+    
+    if(!image_received)
+    {
+        // some initial work when first received an image
+        image_received = true;
+        imgSize = cv_ptr->image.size();
+        int h = (int)(imgSize.height/5);
+        int w = (int)imgSize.width;
+        Rect ROI(0,0,w,h);
+        Mat temp = cv_ptr->image(ROI);
+        temp.copyTo(info_activate);
+        info_activate = Scalar(255,255,255);
+        info_activate.copyTo(info_inactivate);
+        String info = "press 's' to add current keyframe, 'c' to calibrate, 'q' to quit program";
+        String info2 = "press 'q' to quit program";
+        putText(info_activate, info, Point(10,(int)(h/2)), FONT_HERSHEY_SIMPLEX, 0.9, Scalar(0, 0, 0), 4);
+        putText(info_inactivate, info2, Point(10,(int)(h/2)), FONT_HERSHEY_SIMPLEX, 0.9, Scalar(0, 0, 0), 4);
+    }
+    Mat processed_img;
     cv_ptr->image.copyTo(processed_img);
-
     // detect ChArucoBoard
     vector<int> markerIds;
     vector<vector<Point2f> > markerCorners;
@@ -172,18 +194,26 @@ void Calibrator::imageCb(const sensor_msgs::ImageConstPtr& msg)
                 // get robot pose
                 TransformStamped robot_pose = tfBuffer.lookupTransform("base", "tool0_controller", ros::Time(0));
                 allRobotPoses.push_back(robot_pose);
-                imgSize = cv_ptr->image.size();
                 ROS_INFO("%d frames collected", (int)allCharucoCorners.size());
                 save_frame = false;
             }
+        vconcat(info_activate, processed_img, display_img);
     }
+    else
+    {
+        vconcat(info_inactivate, processed_img, display_img);
+    }
+    
 }
 
 int Calibrator::showImage()
 {
-    namedWindow("image", WINDOW_NORMAL);
-    imshow("image", processed_img);
-    return waitKey(1);
+    if(image_received)
+    {
+        namedWindow("image", WINDOW_NORMAL);
+        imshow("image", display_img);
+        return waitKey(1);
+    }
 }
 
 void Calibrator::quat2angaxis(double x, double y, double z, double w, Mat& angaxis)
@@ -281,7 +311,7 @@ int main(int argc, char** argv)
     ros::init(argc, argv, "camera_hand_eye_calibration");
     Calibrator obj;
     ros::Rate loop_rate(50);
-
+    cout << "press 's' to add current keyframe, 'c' to calibrate, 'q' to quit program" << endl;
     while (ros::ok())
     {
         int key = obj.showImage();
@@ -293,7 +323,10 @@ int main(int argc, char** argv)
         {
             obj.calibrate();
         }
-        //ROS_INFO("key pressed %d", key);
+        if(key == 'q')
+        {
+            break;
+        }
         ros::spinOnce();
     }
     return 0;
