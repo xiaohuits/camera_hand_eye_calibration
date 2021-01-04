@@ -10,6 +10,7 @@
 #include "opencv2/aruco/charuco.hpp"
 #include "opencv2/imgproc.hpp"
 #include "opencv2/highgui.hpp"
+#include "opencv2/calib3d.hpp"
 #include "ros/ros.h"
 #include "ros/console.h"
 #include "cv_bridge/cv_bridge.h"
@@ -74,6 +75,9 @@ private:
 
     // help function: convert transformation ROS message to rotation and translation vectors 
     void transform2rv(TransformStamped transform, Mat& rvec, Mat& tvec);
+
+    // help function: convert quaternion to angle axis
+    void quat2angaxis(double x, double y, double z, double w, Mat& angaxis);
 
 };
 
@@ -181,8 +185,51 @@ int Calibrator::showImage()
     return waitKey(1);
 }
 
+void Calibrator::quat2angaxis(double x, double y, double z, double w, Mat& angaxis)
+{
+    // normorlize quaternion
+    double norm = sqrt(x*x + y*y + z*z + w*w);
+    x = x/norm;
+    y = y/norm;
+    z = z/norm;
+    w = w/norm;
+    // convert to angle axis
+    double angle = 2*acos(w);
+    double s = sqrt(1-w*w);
+    double rx, ry, rz;
+    if(s < 0.00001)
+    {
+        // angle is small, so rotation direction is not important
+        rx = 1;
+        ry = 0;
+        rz = 0;
+    }
+    else
+    {
+        rx = x / s;
+        ry = y / s;
+        rz = z / s;
+    }
+    // normalize rotation direction
+    norm = sqrt(rx*rx + ry*ry + rz*rz);
+    rx = rx / norm * angle;
+    ry = ry / norm * angle;
+    rz = rz / norm * angle;
+    angaxis.at<double>(0,0) = rx;
+    angaxis.at<double>(1,0) = ry;
+    angaxis.at<double>(2,0) = rz;
+}
+
 void Calibrator::transform2rv(TransformStamped transform, Mat& rvec, Mat& tvec)
 {
+    tvec = Mat::zeros(3,1,CV_64F);
+    rvec = Mat::zeros(3,1,CV_64F);
+    auto rot = transform.transform.rotation;
+    auto tran = transform.transform.translation;
+    quat2angaxis(rot.x, rot.y, rot.z, rot.w, rvec);
+    tvec.at<double>(0,0) = tran.x;
+    tvec.at<double>(1,0) = tran.y;
+    tvec.at<double>(2,0) = tran.z;
     return;
 }
 
@@ -204,7 +251,10 @@ void Calibrator::calibrate()
         R_gripper2base.push_back(R);
         t_gripper2base.push_back(t);
     }
-
+    Mat R_cam2gripper, t_cam2gripper;
+    calibrateHandEye(R_gripper2base, t_gripper2base, rvecs, tvecs, R_cam2gripper, t_cam2gripper);
+    cout << "camera matrix:" << camera_matrix << endl;
+    cout << "t" << t_cam2gripper << endl;
 }
 
 int main(int argc, char** argv)
@@ -220,9 +270,9 @@ int main(int argc, char** argv)
         {
             obj.saveData();
         }
-        if(key == 'q')
+        if(key == 'c')
         {
-            
+            obj.calibrate();
         }
         //ROS_INFO("key pressed %d", key);
         ros::spinOnce();
