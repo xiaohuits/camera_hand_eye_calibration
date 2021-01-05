@@ -6,6 +6,7 @@
 #include <iostream>
 #include <vector>
 #include <fstream>
+#include <string>
 #include <tf2_ros/transform_listener.h>
 #include <geometry_msgs/TransformStamped.h>
 #include "opencv2/aruco/charuco.hpp"
@@ -30,7 +31,7 @@ class Calibrator
 public:
     Calibrator() : it(nh), tfListener(tfBuffer)
     {
-        img_sub = it.subscribe("avt_camera_img", 2, &Calibrator::imageCb, this);
+        img_sub = it.subscribe("image", 2, &Calibrator::imageCb, this);
         setDetectionParameters();
     }
 
@@ -56,14 +57,18 @@ private:
 	Ptr<aruco::Dictionary> dictionary = aruco::getPredefinedDictionary(aruco::DICT_4X4_50);
 	Ptr<aruco::DetectorParameters> detectorParams = aruco::DetectorParameters::create();
     cv::Ptr<cv::aruco::CharucoBoard> board; 
-    
-    //Mat processed_img;
+
+    // internally used image 
     Mat info_activate, info_inactivate, display_img;
 
+    // containers for calibration data
     vector<vector<Point2f>> allCharucoCorners;
     vector<vector<int>> allCharucoIds;
     vector<TransformStamped> allRobotPoses;
     Size imgSize;
+
+    // tf names to be read from ROS parameter server
+    String robot_base, gripper;
 
     // flag to indicate if have received a image
     bool image_received = false;
@@ -89,52 +94,49 @@ private:
 void Calibrator::setDetectionParameters()
 {
     ros::NodeHandle pnh("~");
-    double _minMarkerPerimeterRate, _maxMarkerPerimeterRate;
     double _squareLength, _markerLength;
-    if(pnh.getParam("minMarkerPerimeterRate", _minMarkerPerimeterRate))
-    {
-        detectorParams->minMarkerPerimeterRate = _minMarkerPerimeterRate;
-
-    }
-    else
+    int _rows, _columns;
+    String _robot_base, _gripper;
+    if(!pnh.getParam("rows", _rows))
     {
         //otherwist a dafault value is used.
-        ROS_ERROR("can't load parameter 'minMarkerPerimeterRate' ");
+        ROS_ERROR("can't load parameter 'rows' ");
+        _rows = 10;
     }
-    if(pnh.getParam("maxMarkerPerimeterRate", _maxMarkerPerimeterRate))
-    {
-        detectorParams->maxMarkerPerimeterRate = _maxMarkerPerimeterRate;
-    }
-    else
+    if(!pnh.getParam("columns", _columns))
     {
         //otherwist a dafault value is used.
-        ROS_ERROR("can't load parameter 'maxMarkerPerimeterRate' ");
+        ROS_ERROR("can't load parameter 'columns' ");
+        _columns = 8;
     }
-    if(pnh.getParam("square_length", _squareLength))
-    {
-    }
-    else
+    if(!pnh.getParam("square_length", _squareLength))
     {
         //otherwist a dafault value is used.
         ROS_ERROR("can't load parameter 'marker_length' ");
         _squareLength = 0.02244;
     }
-    if(pnh.getParam("marker_length", _markerLength))
-    {
-    }
-    else
+    if(!pnh.getParam("marker_length", _markerLength))
     {
         //otherwist a dafault value is used.
         ROS_ERROR("can't load parameter 'marker_separation' ");
         _markerLength = 0.01122;
     }
-
+    if(!pnh.getParam("robot_base", _robot_base))
+    {
+        //otherwist a dafault value is used.
+        ROS_ERROR("can't load parameter 'robot_base' ");
+        _robot_base = "base";
+    }
+    if(!pnh.getParam("gripper", _gripper))
+    {
+        //otherwist a dafault value is used.
+        ROS_ERROR("can't load parameter 'gripper' ");
+        _gripper = "tool0_controller";
+    }
     detectorParams->cornerRefinementMethod = cv::aruco::CORNER_REFINE_SUBPIX;
-    //detectorParams->cornerRefinementWinSize = 3;
-    //detectorParams->cornerRefinementMaxIterations = 8;
-    //detectorParams->perspectiveRemoveIgnoredMarginPerCell = 0.3;
-    //detectorParams->errorCorrectionRate = 0.8;
-    board = aruco::CharucoBoard::create(8, 10, _squareLength, _markerLength, dictionary);
+    board = aruco::CharucoBoard::create(_columns, _rows, _squareLength, _markerLength, dictionary);
+    robot_base = _robot_base;
+    gripper = _gripper;
 }
 
 void Calibrator::imageCb(const sensor_msgs::ImageConstPtr& msg)
@@ -192,7 +194,7 @@ void Calibrator::imageCb(const sensor_msgs::ImageConstPtr& msg)
                 allCharucoCorners.push_back(charucoCorners);
                 allCharucoIds.push_back(charucoIds);
                 // get robot pose
-                TransformStamped robot_pose = tfBuffer.lookupTransform("base", "tool0_controller", ros::Time(0));
+                TransformStamped robot_pose = tfBuffer.lookupTransform(robot_base, gripper, ros::Time(0));
                 allRobotPoses.push_back(robot_pose);
                 ROS_INFO("%d frames collected", (int)allCharucoCorners.size());
                 save_frame = false;

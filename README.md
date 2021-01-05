@@ -1,3 +1,6 @@
+# camera_hand_eye_calibration
+ROS node for pinhole camera calibration and hand eye calibration.
+
 ## Install Latest OpenCV
 The custom built OpenCV that comes with ROS melodic will not work properly for detecting AruCo board. We need to build latest OpenCV from source. 
 ```bash
