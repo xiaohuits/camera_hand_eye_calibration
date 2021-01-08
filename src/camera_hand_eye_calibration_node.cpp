@@ -89,6 +89,9 @@ private:
     // help function: convert quaternion to angle axis
     void quat2angaxis(double x, double y, double z, double w, Mat& angaxis);
 
+    // help function: convert angle axis to quaternion
+    void angaxis2quat(Mat angaxis, vector<double>& quat);
+
 };
 
 void Calibrator::setDetectionParameters()
@@ -253,6 +256,19 @@ void Calibrator::quat2angaxis(double x, double y, double z, double w, Mat& angax
     angaxis.at<double>(2,0) = rz;
 }
 
+void Calibrator::angaxis2quat(Mat angaxis, vector<double>& quat)
+{
+    double rx = angaxis.at<double>(0,0);
+    double ry = angaxis.at<double>(1,0);
+    double rz = angaxis.at<double>(2,0);
+    double angle = sqrt(rx*rx + ry*ry + rz*rz);
+    quat = vector<double>{0,0,0,0};
+    quat[0] = rx/angle*sin(angle/2);
+    quat[1] = ry/angle*sin(angle/2);
+    quat[2] = rz/angle*sin(angle/2);
+    quat[3] = cos(angle/2);
+}
+
 void Calibrator::transform2rv(TransformStamped transform, Mat& rvec, Mat& tvec)
 {
     tvec = Mat::zeros(3,1,CV_64F);
@@ -291,6 +307,12 @@ void Calibrator::calibrate()
     cout << "hand eye pose: translation:\n" << t_cam2gripper << endl;
     cout << "hand eye pose: rotation:\n" << R_cam2gripper << endl;
 
+    // convert rotation matrix to angle axis
+    Rodrigues(R_cam2gripper, R_cam2gripper);
+    // convert angle axsi to quaternion
+    vector<double> q;
+    angaxis2quat(R_cam2gripper, q);
+    
     // saving calibration results
     ofstream myfile;
     myfile.open("camera_hand_eye_calibration.yaml");
@@ -302,9 +324,10 @@ void Calibrator::calibrate()
     myfile << "  D: " << dist_coeffs.reshape(1,1) << endl;
     myfile << "hand_eye_position:\n";
     myfile << "  # rotaion matrix\n";
-    myfile << "  R: " << R_cam2gripper.reshape(1,1) << endl;
+    myfile << "  rotation: [" << q[0] << ", " << q[1] << ", ";
+    myfile << q[2] << ", " << q[3] << "]" << endl;
     myfile << "  # translation\n";
-    myfile << "  t: " << t_cam2gripper.reshape(1,1) << endl;
+    myfile << "  translation: " << t_cam2gripper.reshape(1,1) << endl;
     ROS_INFO("calibration saved to 'camera_hand_eye_calibration.yaml");
 }
 
