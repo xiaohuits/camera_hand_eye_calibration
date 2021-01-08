@@ -1,0 +1,19 @@
+<launch>
+    <arg name="image_topic" doc="the image topic name"/>
+    <arg name="tf_gripper_name" doc="name of the gripper joint in the tf tree"/>
+    <arg name="tf_base_name" doc="name of the robot base in the tf tree"/>
+    <arg name="chessboard_rows" doc="number of chess board rows"/>
+    <arg name="chessboard_columns" doc="number of chessboard columns"/>
+    <arg name="square_length" doc="chessboard square length (meter)"/>
+    <arg name="marker_length" doc="Aruco marker length (meter)"/>
+    
+    <node name="cam_hand_eye_calibrator" pkg="camera_hand_eye_calibration" type="camera_hand_eye_calibration_node" output="screen">
+        <param name="rows" type="int" value="$(arg chessboard_rows)"/>
+        <param name="columns" type="int" value="$(arg chessboard_columns)"/>
+        <param name="square_length" type="double" value="$(arg square_length)"/>
+        <param name="marker_length" type="double" value="$(arg marker_length)"/>
+        <param name="gripper" type="string" value="$(arg tf_gripper_name)"/>
+        <param name="robot_base" type="string" value="$(arg tf_base_name)"/>
+        <remap from="image" to="$(arg image_topic)"/>
+    </node>
+</launch>
