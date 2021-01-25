@@ -14,7 +14,7 @@ Demo vido:
 
 <a href="http://www.youtube.com/watch?feature=player_embedded&v=toB9m3gMc7s
 " target="_blank"><img src="http://img.youtube.com/vi/toB9m3gMc7s/0.jpg" 
-alt="demo video" width="240" height="180" border="10" /></a>
+alt="demo video" width="640" height="480" border="10" /></a>
 
 ## Install Latest OpenCV
 The custom built OpenCV that comes with ROS melodic will not work properly for detecting AruCo board. We need to build latest OpenCV from source. 
