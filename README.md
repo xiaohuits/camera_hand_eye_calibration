@@ -1,6 +1,21 @@
 # camera_hand_eye_calibration
 ROS node for pinhole camera calibration and hand eye calibration.
 
+## Features
+Compared with other camera calibration tool (e.g., [camera_calibration](http://wiki.ros.org/camera_calibration))and hand-eye calibration tool (e.g., [easy_handeye](https://github.com/IFL-CAMP/easy_handeye)), this package provides the following features:
+
+* Camera and hand-eye position calibrated together. 
+The user only need to move the camera (by commanding the robot) around the target and collect a single set of data. 
+The data will be used for both camera calibration and hand-eye calibration.
+* Use [ArUco boards](https://docs.opencv.org/master/db/da9/tutorial_aruco_board_detection.html) instead of the traditional chessboards. 
+Detecting of AruCo board are much more versatile because it allows occlusions and partial views. 
+
+Demo vido:
+
+<a href="http://www.youtube.com/watch?feature=player_embedded&v=toB9m3gMc7s
+" target="_blank"><img src="http://img.youtube.com/vi/toB9m3gMc7s/0.jpg" 
+alt="demo video" width="240" height="180" border="10" /></a>
+
 ## Install Latest OpenCV
 The custom built OpenCV that comes with ROS melodic will not work properly for detecting AruCo board. We need to build latest OpenCV from source. 
 ```bash
