@@ -10,11 +10,9 @@ The data will be used for both camera calibration and hand-eye calibration.
 * Use [ArUco boards](https://docs.opencv.org/master/db/da9/tutorial_aruco_board_detection.html) instead of the traditional chessboards. 
 Detecting of AruCo board are much more versatile because it allows occlusions and partial views. 
 
-Demo vido:
-
 <a href="http://www.youtube.com/watch?feature=player_embedded&v=toB9m3gMc7s
-" target="_blank"><img src="http://img.youtube.com/vi/toB9m3gMc7s/0.jpg" 
-alt="demo video" width="640" height="480" border="10" /></a>
+" target="_blank"><img src="doc/demo.gif" 
+alt="demo video" height="480"/></a>
 
 ## Install Latest OpenCV
 The custom built OpenCV that comes with ROS melodic will not work properly for detecting AruCo board. We need to build latest OpenCV from source. 
